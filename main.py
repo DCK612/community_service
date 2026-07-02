@@ -78,10 +78,14 @@ app.add_middleware(
 from routers.resident import router as resident_router
 from routers.provider import router as provider_router
 from routers.admin import router as admin_router
+from routers.price_guide import router as price_guide_router
+from routers.price_guide import admin_router as price_guide_admin_router
 
 app.include_router(resident_router)
 app.include_router(provider_router)
 app.include_router(admin_router)
+app.include_router(price_guide_router)
+app.include_router(price_guide_admin_router)
 
 
 # ==================== 健康检查 ====================

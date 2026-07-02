@@ -4,7 +4,7 @@
 统一响应格式：{"code": int, "message": str, "data": Any}
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field

@@ -2,7 +2,7 @@
 管理端路由 — 仪表盘、黑名单管理、拉黑操作。
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -53,16 +53,16 @@ async def get_dashboard(
 
     from models.order import Order, OrderStatus
     from models.review import Review
-    from models.user import RoleType, UserBase
+    from models.user import UserRole, UserBase
 
     # 用户统计
     resident_count_result = await db.execute(
-        select(func.count(UserBase.id)).where(UserBase.role == RoleType.RESIDENT)
+        select(func.count(UserBase.id)).where(UserBase.role == UserRole.RESIDENT)
     )
     resident_count = resident_count_result.scalar() or 0
 
     provider_count_result = await db.execute(
-        select(func.count(UserBase.id)).where(UserBase.role == RoleType.PROVIDER)
+        select(func.count(UserBase.id)).where(UserBase.role == UserRole.PROVIDER)
     )
     provider_count = provider_count_result.scalar() or 0
 

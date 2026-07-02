@@ -2,7 +2,7 @@
 服务者端路由 — 状态切换、接单、开始/结束服务、信用分查询、评价居民。
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field

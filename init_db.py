@@ -14,14 +14,15 @@
 import asyncio
 from datetime import datetime, timedelta
 
-from models.database import async_session, engine, Base
+from models.database import async_session_factory, engine, Base
 from models.order import Order, OrderCategory, OrderStatus
+from models.price_guide import PriceGuide
 from models.review import Review, ReviewType
 from models.user import (
     ProviderProfile,
     ProviderStatus,
     ResidentProfile,
-    RoleType,
+    UserRole,
     UserBase,
 )
 
@@ -40,7 +41,7 @@ async def init_database():
         await conn.run_sync(Base.metadata.create_all)
     print("[OK] 表结构创建完成")
 
-    async with async_session() as db:
+    async with async_session_factory() as db:
         # 2. 创建居民
         residents_data = [
             {
@@ -71,7 +72,7 @@ async def init_database():
             user = UserBase(
                 phone=data["phone"],
                 nickname=data["nickname"],
-                role=RoleType.RESIDENT,
+                role=UserRole.RESIDENT,
             )
             db.add(user)
             await db.flush()
@@ -137,7 +138,7 @@ async def init_database():
             user = UserBase(
                 phone=data["phone"],
                 nickname=data["nickname"],
-                role=RoleType.PROVIDER,
+                role=UserRole.PROVIDER,
             )
             db.add(user)
             await db.flush()
@@ -170,6 +171,7 @@ async def init_database():
         # 4.1 PENDING 订单（待接单）
         pending_order = Order(
             order_no="CS20260702001",
+            title="水龙头维修",
             resident_id=residents[0].id,
             category=OrderCategory.REPAIR,
             description="厨房水龙头漏水，需要师傅上门维修",
@@ -177,7 +179,7 @@ async def init_database():
             latitude=30.5728,
             longitude=104.0668,
             status=OrderStatus.PENDING,
-            price=150.00,
+            amount=150.00,
             created_at=now,
         )
         db.add(pending_order)
@@ -186,6 +188,7 @@ async def init_database():
         # 4.2 ACCEPTED 订单（已接单，待开始）
         accepted_order = Order(
             order_no="CS20260702002",
+            title="全屋保洁",
             resident_id=residents[1].id,
             provider_id=providers[1].id,  # 钱阿姨
             category=OrderCategory.CLEANING,
@@ -194,7 +197,7 @@ async def init_database():
             latitude=30.5740,
             longitude=104.0680,
             status=OrderStatus.ACCEPTED,
-            price=200.00,
+            amount=200.00,
             created_at=now - timedelta(hours=2),
             accepted_at=now - timedelta(hours=1),
         )
@@ -204,6 +207,7 @@ async def init_database():
         # 4.3 IN_PROGRESS 订单（服务中）
         in_progress_order = Order(
             order_no="CS20260702003",
+            title="热水器检修",
             resident_id=residents[0].id,
             provider_id=providers[0].id,  # 赵师傅
             category=OrderCategory.REPAIR,
@@ -212,7 +216,7 @@ async def init_database():
             latitude=30.5728,
             longitude=104.0668,
             status=OrderStatus.IN_PROGRESS,
-            price=300.00,
+            amount=300.00,
             created_at=now - timedelta(hours=5),
             accepted_at=now - timedelta(hours=4),
             service_started_at=now - timedelta(hours=3),
@@ -223,6 +227,7 @@ async def init_database():
         # 4.4 WAITING_CONFIRM 订单（服务完成，待确认）
         waiting_confirm_order = Order(
             order_no="CS20260702004",
+            title="初中数学辅导",
             resident_id=residents[2].id,
             provider_id=providers[3].id,  # 周老师
             category=OrderCategory.TUTORING,
@@ -231,7 +236,7 @@ async def init_database():
             latitude=30.5715,
             longitude=104.0655,
             status=OrderStatus.WAITING_CONFIRM,
-            price=500.00,
+            amount=500.00,
             created_at=now - timedelta(days=1),
             accepted_at=now - timedelta(days=1, hours=1),
             service_started_at=now - timedelta(hours=20),
@@ -243,6 +248,7 @@ async def init_database():
         # 4.5 WAITING_REVIEW 订单（已确认，待评价）
         waiting_review_order = Order(
             order_no="CS20260702005",
+            title="英语一对一辅导",
             resident_id=residents[0].id,
             provider_id=providers[3].id,  # 周老师
             category=OrderCategory.TUTORING,
@@ -251,7 +257,7 @@ async def init_database():
             latitude=30.5728,
             longitude=104.0668,
             status=OrderStatus.WAITING_REVIEW,
-            price=400.00,
+            amount=400.00,
             created_at=now - timedelta(days=3),
             accepted_at=now - timedelta(days=3, hours=1),
             service_started_at=now - timedelta(days=3, hours=2),
@@ -264,6 +270,7 @@ async def init_database():
         # 4.6 COMPLETED 订单（已完成）
         completed_order = Order(
             order_no="CS20260702006",
+            title="深度保洁",
             resident_id=residents[1].id,
             provider_id=providers[1].id,  # 钱阿姨
             category=OrderCategory.CLEANING,
@@ -272,7 +279,7 @@ async def init_database():
             latitude=30.5740,
             longitude=104.0680,
             status=OrderStatus.COMPLETED,
-            price=350.00,
+            amount=350.00,
             created_at=now - timedelta(days=7),
             accepted_at=now - timedelta(days=7, hours=1),
             service_started_at=now - timedelta(days=7, hours=2),
@@ -311,6 +318,40 @@ async def init_database():
         )
         db.add(review_provider)
         print(f"[评价] 已完成订单互评 #{completed_order.order_no}")
+
+        # ---------- 定价参考测试数据 ----------
+        price_data = [
+            # 维修类
+            PriceGuide(category=OrderCategory.REPAIR, name="水管漏水维修", description="水龙头、水管、接头漏水修补", price_min=80, price_max=200, unit="次"),
+            PriceGuide(category=OrderCategory.REPAIR, name="电路故障排查", description="跳闸、插座损坏、线路老化检测与维修", price_min=100, price_max=300, unit="次"),
+            PriceGuide(category=OrderCategory.REPAIR, name="空调维修", description="不制冷、异响、漏水等常见故障维修", price_min=150, price_max=500, unit="台"),
+            PriceGuide(category=OrderCategory.REPAIR, name="门锁更换", description="入户门/室内门锁具更换与安装", price_min=50, price_max=150, unit="把"),
+            PriceGuide(category=OrderCategory.REPAIR, name="墙面修补粉刷", description="裂缝填补、局部刷漆、墙皮脱落修复", price_min=30, price_max=80, unit="平方米"),
+            # 保洁类
+            PriceGuide(category=OrderCategory.CLEANING, name="日常保洁", description="地面清扫、家具擦拭、卫生间清洁", price_min=40, price_max=80, unit="小时"),
+            PriceGuide(category=OrderCategory.CLEANING, name="深度保洁", description="厨房油烟机、死角、玻璃、全屋深度清洁", price_min=60, price_max=120, unit="小时"),
+            PriceGuide(category=OrderCategory.CLEANING, name="开荒保洁", description="新房装修后首次全面清洁", price_min=8, price_max=15, unit="平方米"),
+            PriceGuide(category=OrderCategory.CLEANING, name="擦窗服务", description="内外窗玻璃清洁", price_min=3, price_max=8, unit="平方米"),
+            # 搬家类
+            PriceGuide(category=OrderCategory.MOVING, name="小型搬家", description="面包车搬运，适合单身/情侣", price_min=200, price_max=400, unit="车"),
+            PriceGuide(category=OrderCategory.MOVING, name="家庭搬家", description="厢式货车搬运，适合2-3人家庭", price_min=500, price_max=1200, unit="车"),
+            PriceGuide(category=OrderCategory.MOVING, name="家具拆装", description="床/衣柜/书桌等大件家具拆装", price_min=80, price_max=300, unit="件"),
+            PriceGuide(category=OrderCategory.MOVING, name="空调移机", description="空调拆卸+运输+重新安装", price_min=300, price_max=600, unit="台"),
+            # 家教类
+            PriceGuide(category=OrderCategory.TUTORING, name="小学辅导", description="语数英全科作业辅导", price_min=60, price_max=120, unit="小时"),
+            PriceGuide(category=OrderCategory.TUTORING, name="初中辅导", description="数理化/英语单科辅导", price_min=80, price_max=180, unit="小时"),
+            PriceGuide(category=OrderCategory.TUTORING, name="高中辅导", description="高考科目冲刺辅导", price_min=120, price_max=250, unit="小时"),
+            PriceGuide(category=OrderCategory.TUTORING, name="艺体特长", description="钢琴/绘画/书法/舞蹈等兴趣培养", price_min=100, price_max=200, unit="小时"),
+            # 养老类
+            PriceGuide(category=OrderCategory.ELDERLY_CARE, name="日常陪护", description="陪伴散步、聊天、简单家务协助", price_min=30, price_max=60, unit="小时"),
+            PriceGuide(category=OrderCategory.ELDERLY_CARE, name="康复理疗", description="术后恢复、按摩推拿、康复训练指导", price_min=80, price_max=150, unit="次"),
+            PriceGuide(category=OrderCategory.ELDERLY_CARE, name="上门助浴", description="协助行动不便老人洗澡", price_min=60, price_max=120, unit="次"),
+            # 其他类
+            PriceGuide(category=OrderCategory.OTHER, name="宠物代遛", description="遛狗、喂食、铲屎", price_min=20, price_max=50, unit="次"),
+            PriceGuide(category=OrderCategory.OTHER, name="代取快递", description="小区周边快递代取并送货上门", price_min=5, price_max=10, unit="件"),
+        ]
+        db.add_all(price_data)
+        print(f"[定价] 已插入 {len(price_data)} 条定价参考数据")
 
         await db.commit()
 
