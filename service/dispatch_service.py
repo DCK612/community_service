@@ -219,3 +219,58 @@ async def get_available_orders_for_provider(
 
     orders = await order_repo.get_pending_orders(db)
     return list(orders)
+
+
+# ==================== 就近订单池 ====================
+
+async def get_nearby_orders(
+    db: AsyncSession,
+    provider_id: int,
+    provider_lat: float,
+    provider_lon: float,
+    max_radius_km: float = 50.0,
+) -> List[Tuple]:
+    """获取服务者附近的待抢订单池，按距离排序。
+
+    只返回 PENDING 且 prepaid_status=PAID 的订单。
+
+    Args:
+        db: 异步数据库会话。
+        provider_id: 服务者 ID。
+        provider_lat: 服务者纬度。
+        provider_lon: 服务者经度。
+        max_radius_km: 最大搜索半径（公里）。
+
+    Returns:
+        [(Order, distance_km), ...] 按距离升序排列。
+    """
+    # 校验服务者
+    provider = await user_repo.get_by_id(db, provider_id)
+    if provider is None or provider.provider_profile is None:
+        raise ValueError("服务者不存在")
+    if provider.provider_profile.blacklisted:
+        raise ValueError("您已被拉黑，无法接单")
+
+    # 获取所有已支付的待接单订单
+    orders = await order_repo.get_pending_orders(db)
+
+    nearby: List[Tuple] = []
+    for order in orders:
+        # 只显示已预付的订单
+        if order.prepaid_status != "PAID":
+            continue
+
+        if order.latitude is None or order.longitude is None:
+            continue
+
+        distance = _haversine_distance(
+            provider_lat, provider_lon,
+            order.latitude, order.longitude,
+        )
+
+        if distance <= max_radius_km:
+            nearby.append((order, round(distance, 2)))
+
+    # 按距离升序排列
+    nearby.sort(key=lambda x: x[1])
+    return nearby

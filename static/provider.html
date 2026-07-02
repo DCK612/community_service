@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智邻社区 - 服务者端</title>
+<style>
+:root {
+  --primary: #4F46E5; --primary-light: #6366F1;
+  --success: #10B981; --danger: #EF4444; --warning: #F59E0B;
+  --bg: #0F172A; --bg-card: rgba(30,41,59,0.85); --bg-input: rgba(15,23,42,0.6);
+  --text: #F1F5F9; --text-secondary: #94A3B8; --border: rgba(148,163,184,0.2);
+  --glass: rgba(255,255,255,0.05); --glass-hover: rgba(255,255,255,0.1);
+  --radius: 16px; --radius-sm: 10px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+  background: var(--bg); color: var(--text); min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+}
+.auth-bg {
+  position: fixed; inset: 0;
+  background: radial-gradient(ellipse at top right, rgba(99,102,241,0.25), transparent 50%),
+              radial-gradient(ellipse at bottom left, rgba(16,185,129,0.15), transparent 50%),
+              linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+}
+.auth-card {
+  position: relative; z-index: 1;
+  width: 420px; max-width: 94vw;
+  background: rgba(30,41,59,0.8); backdrop-filter: blur(40px);
+  border: 1px solid var(--border); border-radius: 24px;
+  padding: 48px 40px; box-shadow: 0 25px 60px rgba(0,0,0,0.4);
+  animation: fadeUp 0.5s ease;
+}
+@keyframes fadeUp {
+  from { opacity:0; transform: translateY(24px); }
+  to { opacity:1; transform: translateY(0); }
+}
+.auth-card h1 { font-size:28px; font-weight:700; text-align:center; margin-bottom:8px; }
+.auth-card p.sub { text-align:center; color:var(--text-secondary); font-size:14px; margin-bottom:32px; }
+
+.input-group { margin-bottom:18px; }
+.input-group label { display:block; font-size:13px; color:var(--text-secondary); margin-bottom:6px; font-weight:500; }
+.input-wrapper { position:relative; }
+.input-wrapper input, .input-wrapper textarea {
+  width:100%; padding:12px 16px; padding-right:44px;
+  background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm);
+  color:var(--text); font-size:15px; outline:none; transition:border 0.2s, box-shadow 0.2s;
+}
+.input-wrapper textarea { resize:none; min-height:80px; padding-right:16px; }
+.input-wrapper input:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(79,70,229,0.15); }
+.pw-toggle {
+  position:absolute; right:12px; top:50%; transform:translateY(-50%);
+  background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:18px;
+}
+.btn {
+  width:100%; padding:13px; border:none; border-radius:var(--radius-sm);
+  font-size:16px; font-weight:600; cursor:pointer; transition:all 0.25s;
+}
+.btn-primary { background:var(--primary); color:#fff; }
+.btn-primary:hover { background:var(--primary-light); transform:translateY(-1px); box-shadow:0 8px 25px rgba(79,70,229,0.35); }
+.btn-secondary { background:transparent; border:1px solid var(--border); color:var(--text); margin-top:12px; }
+.btn-secondary:hover { background:var(--glass); }
+.btn-danger { background:var(--danger); color:#fff; }
+.btn-success { background:var(--success); color:#fff; }
+.auth-link { text-align:center; margin-top:20px; font-size:14px; color:var(--text-secondary); }
+.auth-link a { color:var(--primary-light); text-decoration:none; font-weight:600; cursor:pointer; }
+
+.steps { display:flex; justify-content:center; margin-bottom:28px; gap:8px; }
+.step { width:32px; height:32px; border-radius:50%; background:var(--glass); border:2px solid var(--border);
+  display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; transition:all 0.3s; }
+.step.active { background:var(--primary); border-color:var(--primary); color:#fff; }
+.step.done { background:var(--success); border-color:var(--success); color:#fff; }
+.step-line { width:40px; height:2px; background:var(--border); align-self:center; }
+.step-line.done { background:var(--success); }
+
+/* App */
+.app { display:none; width:100%; max-width:520px; padding:16px; margin:0 auto; }
+.app.active { display:block; }
+.top-bar { display:flex; justify-content:space-between; align-items:center; padding:16px 0; }
+.top-bar h2 { font-size:22px; font-weight:700; }
+.top-bar button { background:var(--glass); border:1px solid var(--border); color:var(--text); padding:8px 16px;
+  border-radius:var(--radius-sm); cursor:pointer; font-size:14px; }
+
+.card {
+  background:var(--bg-card); backdrop-filter:blur(20px);
+  border:1px solid var(--border); border-radius:var(--radius);
+  padding:20px; margin-bottom:16px;
+}
+.card h3 { font-size:17px; font-weight:600; }
+
+.stat-row { display:flex; gap:12px; margin-bottom:16px; }
+.stat-box { flex:1; background:var(--glass); border:1px solid var(--border); border-radius:var(--radius-sm);
+  padding:14px; text-align:center; }
+.stat-box .num { font-size:22px; font-weight:700; color:var(--primary-light); }
+.stat-box .label { font-size:12px; color:var(--text-secondary); margin-top:4px; }
+
+.nav-tabs { display:flex; gap:4px; background:var(--glass); border-radius:var(--radius-sm); padding:4px; margin-bottom:16px; }
+.nav-tab { flex:1; text-align:center; padding:10px; border-radius:8px; cursor:pointer; font-size:14px; font-weight:600;
+  transition:all 0.2s; color:var(--text-secondary); }
+.nav-tab.active { background:var(--primary); color:#fff; }
+
+.order-item {
+  border-bottom:1px solid var(--border); padding:14px 0;
+}
+.order-item:last-child { border-bottom:none; }
+.order-item .row { display:flex; justify-content:space-between; align-items:center; }
+.order-item .id { font-weight:700; font-size:14px; }
+.order-item .desc { font-size:13px; color:var(--text-secondary); margin:4px 0; }
+.order-item .meta { font-size:12px; color:var(--text-secondary); }
+.order-item .dist { color:var(--primary-light); font-weight:600; }
+
+.tag { display:inline-block; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:600;
+  background:rgba(79,70,229,0.2); color:#A5B4FC; margin-right:6px; }
+
+.badge { display:inline-block; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:600; }
+.badge-online { background:rgba(16,185,129,0.2); color:#10B981; }
+.badge-offline { background:rgba(148,163,184,0.2); color:#94A3B8; }
+.badge-busy { background:rgba(245,158,11,0.2); color:#F59E0B; }
+
+.empty { text-align:center; padding:32px; color:var(--text-secondary); }
+
+.toast {
+  position:fixed; top:20px; left:50%; transform:translateX(-50%);
+  padding:12px 24px; border-radius:var(--radius-sm); font-weight:600; font-size:14px;
+  z-index:200; animation:slideDown 0.3s ease;
+}
+.toast.success { background:var(--success); color:#fff; }
+.toast.error { background:var(--danger); color:#fff; }
+@keyframes slideDown { from { transform:translateX(-50%) translateY(-40px); opacity:0; } }
+
+.online-toggle { display:flex; align-items:center; gap:8px; margin-bottom:16px; }
+.toggle-switch { width:48px; height:26px; background:rgba(148,163,184,0.3); border-radius:13px;
+  position:relative; cursor:pointer; transition:background 0.2s; }
+.toggle-switch.on { background:var(--success); }
+.toggle-switch::after { content:''; position:absolute; width:20px; height:20px; background:#fff; border-radius:50%;
+  top:3px; left:3px; transition:left 0.2s; }
+.toggle-switch.on::after { left:25px; }
+</style>
+</head>
+<body>
+<div class="auth-bg" id="authBg"></div>
+<div class="auth-card" id="authCard"></div>
+<div class="app" id="app"><div id="appContent"></div></div>
+
+<script>
+const API = '';
+let token = '', user = null, providerProfile = null;
+
+function showToast(msg, type='success') {
+  const t = document.createElement('div'); t.className=`toast ${type}`; t.textContent=msg;
+  document.body.appendChild(t); setTimeout(()=>t.remove(), 2500);
+}
+
+async function api(path, method='GET', body=null) {
+  const opts = { method, headers: {'Content-Type':'application/json'} };
+  if (token) opts.headers['Authorization'] = `Bearer ${token}`;
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(API+path, opts);
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.detail || data.message || '请求失败');
+  return data;
+}
+
+// ==================== Auth ====================
+function renderLogin() {
+  document.getElementById('authCard').innerHTML = `
+    <h1>服务者登录</h1>
+    <p class="sub">开始接单赚钱</p>
+    <div class="input-group"><label>手机号</label>
+      <div class="input-wrapper"><input id="loginPhone" placeholder="输入手机号"></div></div>
+    <div class="input-group"><label>密码</label>
+      <div class="input-wrapper"><input id="loginPw" type="password" placeholder="输入密码">
+        <button class="pw-toggle" onclick="togglePw('loginPw',this)">👁</button></div></div>
+    <button class="btn btn-primary" onclick="doLogin()">登录</button>
+    <div class="auth-link">没有账号？<a onclick="renderRegisterStep1()">注册</a></div>
+    <button class="btn btn-secondary" onclick="window.location.href='/resident.html'">切换到居民端</button>
+    <button class="btn btn-secondary" onclick="window.location.href='/admin.html'">管理端入口</button>
+  `;
+}
+
+function renderRegisterStep1() {
+  document.getElementById('authCard').innerHTML = `
+    <h1>服务者注册</h1>
+    <p class="sub">用您的技能服务社区</p>
+    <div class="steps"><div class="step active">1</div><div class="step-line"></div><div class="step">2</div></div>
+    <div class="input-group"><label>手机号</label>
+      <div class="input-wrapper"><input id="regPhone" placeholder="输入手机号"></div></div>
+    <div class="input-group"><label>密码</label>
+      <div class="input-wrapper"><input id="regPw" type="password" placeholder="至少6位">
+        <button class="pw-toggle" onclick="togglePw('regPw',this)">👁</button></div></div>
+    <button class="btn btn-primary" onclick="toStep2()">下一步</button>
+    <div class="auth-link"><a onclick="renderLogin()">返回登录</a></div>
+  `;
+}
+
+function renderRegisterStep2(phone, password) {
+  document.getElementById('authCard').innerHTML = `
+    <h1>完善资料</h1>
+    <p class="sub">让居民了解您的技能</p>
+    <div class="steps"><div class="step done">✓</div><div class="step-line done"></div><div class="step active">2</div></div>
+    <div class="input-group"><label>昵称</label>
+      <div class="input-wrapper"><input id="regNick" placeholder="您的昵称"></div></div>
+    <div class="input-group"><label>技能</label>
+      <div class="input-wrapper"><input id="regSkills" placeholder="如：维修水电,保洁,搬家"></div></div>
+    <div class="input-group"><label>服务区域</label>
+      <div class="input-wrapper"><input id="regAddr" placeholder="例如：幸福小区"></div></div>
+    <button class="btn btn-primary" onclick="doRegister('${phone}','${password}')">完成注册</button>
+    <div class="auth-link"><a onclick="renderRegisterStep1()">返回上一步</a></div>
+  `;
+}
+
+function toStep2() {
+  const phone = document.getElementById('regPhone').value.trim();
+  const pw = document.getElementById('regPw').value;
+  if (!phone||!pw) return showToast('请填写完整','error');
+  if (pw.length<6) return showToast('密码至少6位','error');
+  renderRegisterStep2(phone,pw);
+}
+
+function togglePw(id,btn) {
+  const el=document.getElementById(id);
+  el.type=el.type==='password'?'text':'password';
+  btn.textContent=el.type==='password'?'👁':'🙈';
+}
+
+async function doLogin() {
+  const phone=document.getElementById('loginPhone').value.trim();
+  const pw=document.getElementById('loginPw').value;
+  if(!phone||!pw) return showToast('请输入手机号和密码','error');
+  try {
+    const res=await api('/auth/login/provider','POST',{phone,password:pw});
+    token=res.data.access_token; user={id:res.data.user_id,nickname:res.data.nickname,role:res.data.role};
+    document.getElementById('authBg').style.display='none';
+    document.getElementById('authCard').style.display='none';
+    document.getElementById('app').classList.add('active');
+    await loadProfile();
+    renderHome();
+  } catch(e) { showToast(e.message,'error'); }
+}
+
+async function doRegister(phone,password) {
+  const nick=document.getElementById('regNick').value.trim();
+  const skills=document.getElementById('regSkills').value.trim();
+  const addr=document.getElementById('regAddr').value.trim();
+  if(!nick||!skills||!addr) return showToast('请填写完整','error');
+  try {
+    const res=await api('/auth/register/provider','POST',{
+      phone,password,nickname:nick,skills,address:addr,latitude:30.5728,longitude:104.0668
+    });
+    token=res.data.access_token; user={id:res.data.user_id,nickname:res.data.nickname,role:res.data.role};
+    document.getElementById('authBg').style.display='none';
+    document.getElementById('authCard').style.display='none';
+    document.getElementById('app').classList.add('active');
+    await loadProfile();
+    renderHome();
+  } catch(e) { showToast(e.message,'error'); }
+}
+
+async function loadProfile() {
+  try {
+    const r = await api(`/auth/profile?user_id=${user.id}`);
+    providerProfile = r.data || {};
+  } catch(e) {}
+}
+
+// ==================== App ====================
+function renderHome() {
+  document.getElementById('appContent').innerHTML = `
+    <div class="top-bar"><h2>服务者中心</h2><button onclick="logout()">退出</button></div>
+    <div class="online-toggle"><span>在线状态</span>
+      <div id="toggleBtn" class="toggle-switch on" onclick="toggleStatus()"></div>
+      <span id="statusLabel" class="badge badge-online">ONLINE</span></div>
+    <div class="stat-row">
+      <div class="stat-box"><div class="num" id="creditScore">--</div><div class="label">信用分</div></div>
+      <div class="stat-box"><div class="num" id="monthIncome">¥0</div><div class="label">本月收入</div></div>
+      <div class="stat-box"><div class="num" id="activeOrders">0</div><div class="label">在途订单</div></div>
+    </div>
+    <div class="nav-tabs">
+      <div class="nav-tab active" onclick="switchTab('grab',this)">抢单大厅</div>
+      <div class="nav-tab" onclick="switchTab('my',this)">我的订单</div>
+    </div>
+    <div id="tabContent"></div>
+  `;
+  updateStats();
+  renderGrabTab();
+}
+
+async function updateStats() {
+  try {
+    const r = await api(`/provider/profile/score?provider_id=${user.id}`);
+    if (r.data) document.getElementById('creditScore').textContent = r.data.credit_score || '--';
+    // Get orders to count active
+    const orders = await api(`/provider/orders/my?provider_id=${user.id}`);
+    const active = (orders.data?.orders||[]).filter(o=>['ACCEPTED','IN_PROGRESS','WAITING_CONFIRM'].includes(o.status)).length;
+    document.getElementById('activeOrders').textContent = active;
+  } catch(e) {}
+}
+
+function switchTab(tab,el) {
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  if (tab==='grab') renderGrabTab();
+  else renderMyOrdersTab();
+}
+
+// ==================== Grab Orders ====================
+async function renderGrabTab() {
+  document.getElementById('tabContent').innerHTML = '<div class="card"><h3>🔍 附近订单池</h3></div><div id="grabList"><p class="empty">获取位置中...</p></div>';
+
+  if (!navigator.geolocation) {
+    document.getElementById('grabList').innerHTML = '<p class="empty">需要位置权限查看附近订单</p>';
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(async pos => {
+    const lat = pos.coords.latitude;
+    const lon = pos.coords.longitude;
+    try {
+      const r = await api('/provider/orders/available', 'POST', {
+        provider_id: user.id, latitude: lat, longitude: lon
+      });
+      const orders = r.data?.orders || [];
+      const html = orders.length ? orders.map(o=>`
+        <div class="order-item">
+          <div class="row"><span class="id">#${o.order_no}</span>
+            <span class="dist">${(o.distance_km||0).toFixed(1)} km</span></div>
+          <div class="desc">${o.category} · ${o.description}</div>
+          <div class="meta">地址：${o.address} | 金额：¥${o.total_price||0} | 预付：${o.prepaid_status||'N/A'}</div>
+          <div style="margin-top:8px"><button class="btn btn-primary" style="width:auto;padding:8px 20px;font-size:14px;" onclick="grabOrder(${o.order_id})">抢单</button></div>
+        </div>`).join('') : '<p class="empty">暂无附近订单</p>';
+      document.getElementById('grabList').innerHTML = html;
+    } catch(e) {
+      document.getElementById('grabList').innerHTML = `<p class="empty">加载失败：${e.message}</p>`;
+    }
+  }, () => {
+    document.getElementById('grabList').innerHTML = '<p class="empty">请授予位置权限以查看附近订单</p>';
+  });
+}
+
+async function grabOrder(orderId) {
+  try {
+    const r = await api(`/provider/orders/${orderId}/grab`,'POST',{
+      provider_id:user.id, latitude:30.5728, longitude:104.0668
+    });
+    showToast('抢单成功！');
+    renderGrabTab();
+    updateStats();
+  } catch(e) { showToast(e.message,'error'); }
+}
+
+// ==================== My Orders ====================
+async function renderMyOrdersTab() {
+  document.getElementById('tabContent').innerHTML = '<div class="card"><h3>我的订单</h3></div><div id="myOrderList"><p class="empty">加载中...</p></div>';
+  try {
+    const r = await api(`/provider/orders/my?provider_id=${user.id}`);
+    const orders = r.data?.orders || [];
+    const html = orders.length ? orders.map(o=>`
+      <div class="order-item">
+        <div class="row"><span class="id">#${o.order_no}</span>
+          <span class="tag">${o.status}</span></div>
+        <div class="desc">${o.category} · ${o.description}</div>
+        <div class="meta">¥${o.amount||0} | ${o.address}</div>
+        <div style="margin-top:8px">
+          ${o.status==='ACCEPTED' ? `<button class="btn btn-primary" style="width:auto;padding:6px 16px;font-size:13px;" onclick="startService(${o.id})">开始服务</button>` : ''}
+          ${o.status==='IN_PROGRESS' ? `<button class="btn btn-success" style="width:auto;padding:6px 16px;font-size:13px;" onclick="finishService(${o.id})">标记完成</button>` : ''}
+        </div>
+      </div>`).join('') : '<p class="empty">暂无订单</p>';
+    document.getElementById('myOrderList').innerHTML = html;
+  } catch(e) {
+    document.getElementById('myOrderList').innerHTML = `<p class="empty">加载失败</p>`;
+  }
+}
+
+async function startService(orderId) {
+  try {
+    await api(`/provider/orders/${orderId}/start`,'POST',{provider_id:user.id});
+    showToast('已开始服务');
+    renderMyOrdersTab();
+  } catch(e) { showToast(e.message,'error'); }
+}
+
+async function finishService(orderId) {
+  try {
+    await api(`/provider/orders/${orderId}/finish`,'POST',{provider_id:user.id});
+    showToast('已完成，等待居民确认');
+    renderMyOrdersTab();
+  } catch(e) { showToast(e.message,'error'); }
+}
+
+async function toggleStatus() {
+  const btn = document.getElementById('toggleBtn');
+  const label = document.getElementById('statusLabel');
+  const newStatus = btn.classList.contains('on') ? 'OFFLINE' : 'ONLINE';
+  try {
+    await api('/provider/status','PUT',{provider_id:user.id,status:newStatus});
+    if (newStatus==='OFFLINE') {
+      btn.classList.remove('on'); label.textContent='OFFLINE'; label.className='badge badge-offline';
+    } else {
+      btn.classList.add('on'); label.textContent='ONLINE'; label.className='badge badge-online';
+    }
+  } catch(e) { showToast(e.message,'error'); }
+}
+
+function logout() {
+  token=''; user=null; providerProfile=null;
+  document.getElementById('app').classList.remove('active');
+  document.getElementById('authBg').style.display='block';
+  document.getElementById('authCard').style.display='block';
+  renderLogin();
+}
+
+renderLogin();
+</script>
+</body>
+</html>

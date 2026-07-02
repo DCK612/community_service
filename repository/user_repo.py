@@ -207,27 +207,17 @@ class UserRepository(BaseRepository[UserBase]):
         db: AsyncSession,
         phone: str,
         nickname: str,
+        password_hash: str = "",
         address: Optional[str] = None,
         latitude: Optional[float] = None,
         longitude: Optional[float] = None,
     ) -> UserBase:
-        """创建居民用户（同时创建 UserBase + ResidentProfile）。
-
-        Args:
-            db: 异步数据库会话。
-            phone: 手机号。
-            nickname: 昵称。
-            address: 默认地址。
-            latitude: 纬度。
-            longitude: 经度。
-
-        Returns:
-            新创建的 UserBase 对象（已加载 resident_profile）。
-        """
+        """创建居民用户（同时创建 UserBase + ResidentProfile）。"""
         user = UserBase(
             role=UserRole.RESIDENT,
             phone=phone,
             nickname=nickname,
+            password_hash=password_hash,
         )
         db.add(user)
         await db.flush()  # 获取 user.id
@@ -248,29 +238,18 @@ class UserRepository(BaseRepository[UserBase]):
         db: AsyncSession,
         phone: str,
         nickname: str,
+        password_hash: str = "",
         skills: Optional[str] = None,
         address: Optional[str] = None,
         latitude: Optional[float] = None,
         longitude: Optional[float] = None,
     ) -> UserBase:
-        """创建服务者用户（同时创建 UserBase + ProviderProfile）。
-
-        Args:
-            db: 异步数据库会话。
-            phone: 手机号。
-            nickname: 昵称。
-            skills: 技能标签（逗号分隔）。
-            address: 服务地址。
-            latitude: 纬度。
-            longitude: 经度。
-
-        Returns:
-            新创建的 UserBase 对象（已加载 provider_profile）。
-        """
+        """创建服务者用户（同时创建 UserBase + ProviderProfile）。"""
         user = UserBase(
             role=UserRole.PROVIDER,
             phone=phone,
             nickname=nickname,
+            password_hash=password_hash,
         )
         db.add(user)
         await db.flush()

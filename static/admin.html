@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智邻社区 - 管理端</title>
+<style>
+:root {
+  --primary: #4F46E5; --primary-light: #6366F1;
+  --success: #10B981; --danger: #EF4444; --warning: #F59E0B;
+  --bg: #0F172A; --bg-card: rgba(30,41,59,0.85); --bg-input: rgba(15,23,42,0.6);
+  --text: #F1F5F9; --text-secondary: #94A3B8; --border: rgba(148,163,184,0.2);
+  --glass: rgba(255,255,255,0.05); --glass-hover: rgba(255,255,255,0.1);
+  --radius: 16px; --radius-sm: 10px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+  background: var(--bg); color: var(--text); min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+}
+.auth-bg {
+  position: fixed; inset: 0;
+  background: radial-gradient(ellipse at center, rgba(79,70,229,0.2), transparent 50%),
+              linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+}
+.auth-card {
+  position: relative; z-index: 1;
+  width: 420px; max-width: 94vw;
+  background: rgba(30,41,59,0.8); backdrop-filter: blur(40px);
+  border: 1px solid var(--border); border-radius: 24px;
+  padding: 48px 40px; box-shadow: 0 25px 60px rgba(0,0,0,0.4);
+  animation: fadeUp 0.5s ease;
+}
+@keyframes fadeUp {
+  from { opacity:0; transform: translateY(24px); }
+  to { opacity:1; transform: translateY(0); }
+}
+.auth-card h1 { font-size:28px; font-weight:700; text-align:center; margin-bottom:8px; }
+.auth-card p.sub { text-align:center; color:var(--text-secondary); font-size:14px; margin-bottom:32px; }
+
+.input-group { margin-bottom:18px; }
+.input-group label { display:block; font-size:13px; color:var(--text-secondary); margin-bottom:6px; font-weight:500; }
+.input-wrapper { position:relative; }
+.input-wrapper input, .input-wrapper select, .input-wrapper textarea {
+  width:100%; padding:12px 16px; padding-right:44px;
+  background:var(--bg-input); border:1px solid var(--border); border-radius:var(--radius-sm);
+  color:var(--text); font-size:15px; outline:none; transition:border 0.2s, box-shadow 0.2s;
+}
+.input-wrapper textarea { resize:none; min-height:80px; padding-right:16px; }
+.input-wrapper input:focus, .input-wrapper select:focus { border-color:var(--primary); box-shadow:0 0 0 3px rgba(79,70,229,0.15); }
+.pw-toggle {
+  position:absolute; right:12px; top:50%; transform:translateY(-50%);
+  background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:18px;
+}
+.btn {
+  width:100%; padding:13px; border:none; border-radius:var(--radius-sm);
+  font-size:16px; font-weight:600; cursor:pointer; transition:all 0.25s;
+}
+.btn-primary { background:var(--primary); color:#fff; }
+.btn-primary:hover { background:var(--primary-light); transform:translateY(-1px); box-shadow:0 8px 25px rgba(79,70,229,0.35); }
+.btn-secondary { background:transparent; border:1px solid var(--border); color:var(--text); margin-top:12px; }
+.btn-secondary:hover { background:var(--glass); }
+.btn-danger { background:var(--danger); color:#fff; }
+.btn-success { background:var(--success); color:#fff; }
+.btn-sm { width:auto; padding:6px 14px; font-size:13px; }
+.auth-link { text-align:center; margin-top:20px; font-size:14px; color:var(--text-secondary); }
+.auth-link a { color:var(--primary-light); text-decoration:none; font-weight:600; cursor:pointer; }
+
+/* App */
+.app { display:none; width:100%; max-width:640px; padding:16px; margin:0 auto; }
+.app.active { display:block; }
+.top-bar { display:flex; justify-content:space-between; align-items:center; padding:16px 0; }
+.top-bar h2 { font-size:22px; font-weight:700; }
+.top-bar button { background:var(--glass); border:1px solid var(--border); color:var(--text); padding:8px 16px;
+  border-radius:var(--radius-sm); cursor:pointer; font-size:14px; }
+
+.card {
+  background:var(--bg-card); backdrop-filter:blur(20px);
+  border:1px solid var(--border); border-radius:var(--radius);
+  padding:20px; margin-bottom:16px;
+}
+.card h3 { font-size:17px; font-weight:600; }
+
+.stat-row { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+.stat-box { flex:1; min-width:100px; background:var(--glass); border:1px solid var(--border); border-radius:var(--radius-sm);
+  padding:14px; text-align:center; }
+.stat-box .num { font-size:22px; font-weight:700; color:var(--primary-light); }
+.stat-box .label { font-size:12px; color:var(--text-secondary); margin-top:4px; }
+
+.nav-tabs { display:flex; gap:4px; background:var(--glass); border-radius:var(--radius-sm); padding:4px; margin-bottom:16px; overflow-x:auto; }
+.nav-tab { flex:1; text-align:center; padding:10px 8px; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600;
+  transition:all 0.2s; color:var(--text-secondary); white-space:nowrap; }
+.nav-tab.active { background:var(--primary); color:#fff; }
+
+.table { width:100%; border-collapse:collapse; font-size:13px; }
+.table th { text-align:left; color:var(--text-secondary); padding:10px 8px; border-bottom:1px solid var(--border); font-weight:600; }
+.table td { padding:10px 8px; border-bottom:1px solid rgba(148,163,184,0.1); }
+.table tr:hover td { background:var(--glass); }
+
+.badge { display:inline-block; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:700; }
+.badge-success { background:rgba(16,185,129,0.2); color:#10B981; }
+.badge-warning { background:rgba(245,158,11,0.2); color:#F59E0B; }
+.badge-danger { background:rgba(239,68,68,0.2); color:#EF4444; }
+.badge-info { background:rgba(59,130,246,0.2); color:#3B82F6; }
+
+.empty { text-align:center; padding:32px; color:var(--text-secondary); }
+
+.toast {
+  position:fixed; top:20px; left:50%; transform:translateX(-50%);
+  padding:12px 24px; border-radius:var(--radius-sm); font-weight:600; font-size:14px;
+  z-index:200; animation:slideDown 0.3s ease;
+}
+.toast.success { background:var(--success); color:#fff; }
+.toast.error { background:var(--danger); color:#fff; }
+@keyframes slideDown { from { transform:translateX(-50%) translateY(-40px); opacity:0; } }
+
+.modal-overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px);
+  z-index:100; display:flex; align-items:center; justify-content:center;
+}
+.modal {
+  background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);
+  padding:28px; width:90%; max-width:460px; max-height:85vh; overflow-y:auto;
+}
+.modal h3 { margin-bottom:16px; }
+</style>
+</head>
+<body>
+<div class="auth-bg" id="authBg"></div>
+<div class="auth-card" id="authCard"></div>
+<div class="app" id="app"><div id="appContent"></div></div>
+
+<script>
+const API = '';
+let token = '', user = null, adminRole = null;
+
+function showToast(msg, type='success') {
+  const t = document.createElement('div'); t.className=`toast ${type}`; t.textContent=msg;
+  document.body.appendChild(t); setTimeout(()=>t.remove(), 2500);
+}
+
+async function api(path, method='GET', body=null) {
+  const opts = { method, headers: {'Content-Type':'application/json'} };
+  if (token) opts.headers['Authorization'] = `Bearer ${token}`;
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(API+path, opts);
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.detail || data.message || '请求失败');
+  return data;
+}
+
+// ==================== Auth ====================
+function renderLogin() {
+  document.getElementById('authCard').innerHTML = `
+    <h1>管理员登录</h1>
+    <p class="sub">社区服务平台管理后台</p>
+    <div class="input-group"><label>手机号</label>
+      <div class="input-wrapper"><input id="loginPhone" placeholder="输入手机号（DDD）"></div></div>
+    <div class="input-group"><label>密码</label>
+      <div class="input-wrapper"><input id="loginPw" type="password" placeholder="输入密码">
+        <button class="pw-toggle" onclick="togglePw('loginPw',this)">👁</button></div></div>
+    <button class="btn btn-primary" onclick="doLogin()">登录</button>
+    <button class="btn btn-secondary" onclick="renderApplyPage()">申请管理员权限</button>
+    <button class="btn btn-secondary" onclick="window.location.href='/resident.html'">返回居民端</button>
+  `;
+}
+
+function renderApplyPage() {
+  document.getElementById('authCard').innerHTML = `
+    <h1>申请管理员</h1>
+    <p class="sub">提交申请理由，等待超级管理员审批</p>
+    <div class="input-group"><label>手机号（已登录用户的手机号）</label>
+      <div class="input-wrapper"><input id="applyPhone" placeholder="输入手机号"></div></div>
+    <div class="input-group"><label>密码</label>
+      <div class="input-wrapper"><input id="applyPw" type="password" placeholder="输入密码验证身份">
+        <button class="pw-toggle" onclick="togglePw('applyPw',this)">👁</button></div></div>
+    <div class="input-group"><label>申请理由</label>
+      <div class="input-wrapper"><textarea id="applyReason" placeholder="请说明申请管理员权限的原因..."></textarea></div></div>
+    <button class="btn btn-primary" onclick="submitApplication()">提交申请</button>
+    <div class="auth-link"><a onclick="renderLogin()">返回登录</a></div>
+  `;
+}
+
+function togglePw(id,btn) {
+  const el=document.getElementById(id);
+  el.type=el.type==='password'?'text':'password';
+  btn.textContent=el.type==='password'?'👁':'🙈';
+}
+
+async function submitApplication() {
+  const phone = document.getElementById('applyPhone').value.trim();
+  const pw = document.getElementById('applyPw').value;
+  const reason = document.getElementById('applyReason').value.trim();
+  if (!phone||!pw||!reason) return showToast('请填写完整','error');
+  try {
+    // Login first
+    const loginRes = await api('/auth/login/resident','POST',{phone,password:pw}).catch(()=>{});
+    if (!loginRes) return showToast('账号密码错误','error');
+    const t = loginRes.data.token;
+    // Submit application
+    const r = await fetch(API+'/auth/apply-admin',{
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':`Bearer ${t}`},
+      body:JSON.stringify({reason})
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail||'申请失败');
+    showToast('申请已提交，请等待超级管理员审批');
+    renderLogin();
+  } catch(e) { showToast(e.message,'error'); }
+}
+
+async function doLogin() {
+  const phone=document.getElementById('loginPhone').value.trim();
+  const pw=document.getElementById('loginPw').value;
+  if(!phone||!pw) return showToast('请输入手机号和密码','error');
+  try {
+    const res=await api('/auth/login','POST',{phone,password:pw});
+    token=res.data.access_token; user={id:res.data.user_id,nickname:res.data.nickname,phone:phone,role:res.data.role};
+    document.getElementById('authBg').style.display='none';
+    document.getElementById('authCard').style.display='none';
+    document.getElementById('app').classList.add('active');
+    await loadAdminInfo();
+    renderDashboard();
+  } catch(e) { showToast(e.message,'error'); }
+}
+
+async function loadAdminInfo() {
+  try {
+    // Try to get admin role
+    const r = await api('/admin/dashboard');
+    adminRole = 'SUPER_ADMIN'; // Assume if dashboard works
+  } catch(e) {
+    adminRole = null;
+    // Not admin, show application prompt
+    document.getElementById('appContent').innerHTML = `
+      <div class="top-bar"><h2>管理后台</h2><button onclick="logout()">退出</button></div>
+      <div class="card"><h3>暂无管理权限</h3><p style="color:var(--text-secondary)">您尚未获得管理员权限，请前往申请。</p></div>
+      <button class="btn btn-primary" onclick="showApplyFromApp()">申请管理员</button>
+    `;
+  }
+}
+
+function showApplyFromApp() {
+  const overlay = document.createElement('div'); overlay.className='modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>申请管理员</h3>
+      <div class="input-group"><label>申请理由</label>
+        <div class="input-wrapper"><textarea id="applyReason2" placeholder="请说明申请管理员权限的原因..."></textarea></div></div>
+      <button class="btn btn-primary" onclick="submitApp2()">提交</button>
+      <button class="btn btn-secondary" style="margin-top:8px" onclick="this.closest('.modal-overlay').remove()">取消</button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function submitApp2() {
+  const reason = document.getElementById('applyReason2').value.trim();
+  if (!reason) return showToast('请填写理由','error');
+  try {
+    await api('/auth/apply-admin','POST',{reason});
+    showToast('申请已提交');
+    document.querySelector('.modal-overlay')?.remove();
+  } catch(e) { showToast(e.message,'error'); }
+}
+
+// ==================== Dashboard ====================
+function renderHome() {
+  document.getElementById('appContent').innerHTML = `
+    <div class="top-bar"><h2>管理后台</h2><button onclick="logout()">退出</button></div>
+    <div class="nav-tabs" id="navTabs"></div>
+    <div id="tabContent"></div>
+  `;
+  buildNav();
+  renderDashboard();
+}
+
+function buildNav() {
+  const tabs = [];
+  tabs.push({id:'dashboard',label:'数据看板',fn:renderDashboard});
+  tabs.push({id:'orders',label:'订单管理',fn:renderOrders});
+  tabs.push({id:'users',label:'用户管理',fn:renderUsers});
+  tabs.push({id:'applications',label:'申请审批',fn:renderApplications});
+  tabs.push({id:'price',label:'定价管理',fn:renderPriceGuides});
+  tabs.push({id:'blacklist',label:'黑名单',fn:renderBlacklist});
+
+  document.getElementById('navTabs').innerHTML = tabs.map(t=>
+    `<div class="nav-tab" onclick="switchAdminTab('${t.id}',this,${t.fn.name})" data-fn="${t.fn.name}">
+      ${t.label}</div>`).join('');
+  document.querySelector('.nav-tab').classList.add('active');
+
+  // Store fns
+  window._adminFns = {};
+  tabs.forEach(t=>{ window._adminFns[t.id] = t.fn; });
+}
+
+function switchAdminTab(id,el,fnName) {
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  window._adminFns[id]();
+}
+
+async function renderDashboard() {
+  try {
+    const r = await api('/admin/dashboard');
+    const d = r.data;
+    document.getElementById('tabContent').innerHTML = `
+      <div class="card"><h3>平台概览</h3></div>
+      <div class="stat-row">
+        <div class="stat-box"><div class="num">${d.users?.total||0}</div><div class="label">总用户</div></div>
+        <div class="stat-box"><div class="num">${d.users?.residents||0}</div><div class="label">居民</div></div>
+        <div class="stat-box"><div class="num">${d.users?.providers||0}</div><div class="label">服务者</div></div>
+        <div class="stat-box"><div class="num">${d.blacklist?.total||0}</div><div class="label">黑名单</div></div>
+      </div>
+      <div class="stat-row">
+        <div class="stat-box"><div class="num">${d.orders?.total||0}</div><div class="label">总订单</div></div>
+        <div class="stat-box"><div class="num">${d.orders?.pending||0}</div><div class="label">待处理</div></div>
+        <div class="stat-box"><div class="num">${d.orders?.completed||0}</div><div class="label">已完成</div></div>
+        <div class="stat-box"><div class="num">${d.orders?.completion_rate||0}%</div><div class="label">完成率</div></div>
+      </div>
+      <div class="card"><h3>总收入：¥${d.revenue||0}</h3></div>
+    `;
+  } catch(e) {
+    document.getElementById('tabContent').innerHTML = `<div class="card"><h3>数据看板</h3><p style="color:var(--text-secondary)">需要 L1 及以上管理员权限</p></div>`;
+  }
+}
+
+// ==================== Orders ====================
+async function renderOrders() {
+  document.getElementById('tabContent').innerHTML = '<div class="card"><h3>订单管理</h3></div><div id="orderData"><p class="empty">加载中...</p></div>';
+  try {
+    const r = await api('/admin/orders');
+    const orders = r.data?.orders || [];
+    const html = orders.length ? `
+      <div style="overflow-x:auto"><table class="table">
+        <thead><tr><th>订单号</th><th>类别</th><th>金额</th><th>状态</th><th>操作</th></tr></thead>
+        <tbody>${orders.map(o=>`
+          <tr>
+            <td>${o.order_no}</td><td>${o.category}</td><td>¥${o.amount||0}</td>
+            <td>${o.status}</td>
+            <td>${['PENDING','ACCEPTED','IN_PROGRESS'].includes(o.status)?`<button class="btn btn-danger btn-sm" onclick="cancelOrder(${o.id})">取消</button>`:''}</td>
+          </tr>`).join('')}</tbody></table></div>` : '<p class="empty">暂无订单</p>';
+    document.getElementById('orderData').innerHTML = html;
+  } catch(e) {
+    document.getElementById('orderData').innerHTML = `<p class="empty">需要 L2 及以上权限</p>`;
+  }
+}
+
+async function cancelOrder(id) {
+  try {
+    await api(`/admin/orders/${id}/cancel`,'POST');
+    showToast('订单已取消');
+    renderOrders();
+  } catch(e) { showToast(e.message,'error'); }
+}
+
+// ==================== Users ====================
+async function renderUsers() {
+  document.getElementById('tabContent').innerHTML = '<div class="card"><h3>用户管理</h3></div><div id="userData"><p class="empty">加载中...</p></div>';
+  try {
+    const r = await api('/admin/users');
+    const users = r.data?.users || [];
+    const html = users.length ? `
+      <div style="overflow-x:auto"><table class="table">
+        <thead><tr><th>ID</th><th>手机号</th><th>昵称</th><th>角色</th></tr></thead>
+        <tbody>${users.map(u=>`
+          <tr><td>${u.id}</td><td>${u.phone}</td><td>${u.nickname}</td><td>${u.role}</td></tr>`).join('')}</tbody></table></div>` : '<p class="empty">暂无用户</p>';
+    document.getElementById('userData').innerHTML = html;
+  } catch(e) {
+    document.getElementById('userData').innerHTML = `<p class="empty">需要 L2 及以上权限</p>`;
+  }
+}
+
+// ==================== Applications ====================
+async function renderApplications() {
+  document.getElementById('tabContent').innerHTML = '<div class="card"><h3>管理员申请审批</h3></div><div id="appData"><p class="empty">加载中...</p></div>';
+  try {
+    const r = await api('/admin/applications');
+    const apps = r.data?.applications || [];
+    const pending = apps.filter(a=>a.status==='PENDING');
+    const html = pending.length ? `
+      <table class="table">
+        <thead><tr><th>申请人</th><th>理由</th><th>操作</th></tr></thead>
+        <tbody>${pending.map(a=>`
+          <tr>
+            <td>${a.applicant_name} (${a.applicant_phone})</td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${a.reason}</td>
+            <td>
+              <select id="role_${a.id}" style="background:var(--bg-input);border:1px solid var(--border);color:var(--text);padding:4px;border-radius:6px;margin-right:4px">
+                <option value="ADMIN_L1">L1 只读</option>
+                <option value="ADMIN_L2">L2 管理</option>
+                <option value="ADMIN_L3">L3 高级</option></select>
+              <button class="btn btn-success btn-sm" onclick="approveApp(${a.id},true)">批准</button>
+              <button class="btn btn-danger btn-sm" onclick="approveApp(${a.id},false)">拒绝</button>
+            </td>
+          </tr>`).join('')}</tbody></table>` : '<p class="empty">无待审批申请</p>';
+
+    // All apps
+    const allHtml = apps.length ? `
+      <div class="card" style="margin-top:16px"><h3>全部申请记录</h3></div>
+      <table class="table">
+        <thead><tr><th>申请人</th><th>理由</th><th>状态</th><th>时间</th></tr></thead>
+        <tbody>${apps.map(a=>`
+          <tr><td>${a.applicant_name}</td><td>${a.reason?.substring(0,40)}</td>
+          <td><span class="badge ${a.status==='APPROVED'?'badge-success':a.status==='REJECTED'?'badge-danger':'badge-warning'}">${a.status}</span></td>
+          <td>${a.created_at?.substring(0,10)||''}</td></tr>`).join('')}</tbody></table>` : '';
+    document.getElementById('appData').innerHTML = html + allHtml;
+  } catch(e) {
+    document.getElementById('appData').innerHTML = `<p class="empty">需要超级管理员权限</p>`;
+  }
+}
+
+async function approveApp(id, approved) {
+  const role = document.getElementById(`role_${id}`).value;
+  try {
+    await api(`/admin/applications/${id}/approve`,'POST',{approved,admin_role:approved?role:null});
+    showToast(approved?'已批准':'已拒绝');
+    renderApplications();
+  } catch(e) { showToast(e.message,'error'); }
+}
+
+// ==================== Price Guides ====================
+async function renderPriceGuides() {
+  document.getElementById('tabContent').innerHTML = `
+    <div class="card"><h3>定价管理</h3>
+      <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="showAddPrice()">+ 新增定价</button>
+    </div><div id="priceData"><p class="empty">加载中...</p></div>`;
+  try {
+    const r = await api('/admin/price-guides');
+    const guides = r.data?.price_guides || [];
+    const html = guides.length ? `
+      <table class="table">
+        <thead><tr><th>类别</th><th>名称</th><th>最低价</th><th>最高价</th><th>单位</th><th>操作</th></tr></thead>
+        <tbody>${guides.map(g=>`
+          <tr><td>${g.category}</td><td>${g.name}</td><td>¥${g.price_min}</td><td>¥${g.price_max}</td><td>${g.unit}</td>
+          <td>
+            <button class="btn btn-sm btn-primary" style="margin-right:4px" onclick="editPrice(${g.id},'${g.category}','${g.name}','${g.description||''}',${g.price_min},${g.price_max},'${g.unit}',${g.is_active})">编辑</button>
+            <button class="btn btn-sm btn-danger" onclick="deletePrice(${g.id})">删除</button>
+          </td></tr>`).join('')}</tbody></table>` : '<p class="empty">暂无定价条目</p>';
+    document.getElementById('priceData').innerHTML = html;
+  } catch(e) {
+    document.getElementById('priceData').innerHTML = `<p class="empty">需要 L3 及以上权限</p>`;
+  }
+}
+
+function showAddPrice(editData=null) {
+  const d = editData || {id:'',category:'REPAIR',name:'',description:'',price_min:'',price_max:'',unit:'次',is_active:true};
+  const overlay = document.createElement('div'); overlay.className='modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal">
+      <h3>${editData?'编辑':'新增'}定价条目</h3>
+      <div class="input-group"><label>类别</label>
+        <div class="input-wrapper"><select id="pgCat">
+          <option value="REPAIR" ${d.category==='REPAIR'?'selected':''}>维修</option>
+          <option value="CLEANING" ${d.category==='CLEANING'?'selected':''}>保洁</option>
+          <option value="MOVING" ${d.category==='MOVING'?'selected':''}>搬家</option>
+          <option value="TUTORING" ${d.category==='TUTORING'?'selected':''}>家教</option>
+          <option value="ELDERLY_CARE" ${d.category==='ELDERLY_CARE'?'selected':''}>养老</option>
+          <option value="OTHER" ${d.category==='OTHER'?'selected':''}>其他</option>
+        </select></div></div>
+      <div class="input-group"><label>名称</label>
+        <div class="input-wrapper"><input id="pgName" value="${d.name}"></div></div>
+      <div class="input-group"><label>描述</label>
+        <div class="input-wrapper"><textarea id="pgDesc">${d.description||''}</textarea></div></div>
+      <div style="display:flex;gap:12px">
+        <div class="input-group" style="flex:1"><label>最低价</label>
+          <div class="input-wrapper"><input id="pgMin" type="number" value="${d.price_min}"></div></div>
+        <div class="input-group" style="flex:1"><label>最高价</label>
+          <div class="input-wrapper"><input id="pgMax" type="number" value="${d.price_max}"></div></div>
+      </div>
+      <div class="input-group"><label>单位</label>
+        <div class="input-wrapper"><input id="pgUnit" value="${d.unit}"></div></div>
+      <button class="btn btn-primary" onclick="savePrice(${d.id||0})">${editData?'保存修改':'创建'}</button>
+      <button class="btn btn-secondary" style="margin-top:8px" onclick="this.closest('.modal-overlay').remove()">取消</button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
+
+function editPrice(id,cat,name,desc,min,max,unit,active) {
+  showAddPrice({id,category:cat,name,description:desc,price_min:min,price_max:max,unit,is_active:active});
+}
+
+async function savePrice(id) {
+  const body = {
+    category: document.getElementById('pgCat').value,
+    name: document.getElementById('pgName').value,
+    description: document.getElementById('pgDesc').value,
+    price_min: parseFloat(document.getElementById('pgMin').value),
+    price_max: parseFloat(document.getElementById('pgMax').value),
+    unit: document.getElementById('pgUnit').value,
+    is_active: true
+  };
+  if (!body.name||!body.price_min||!body.price_max) return showToast('请填写完整','error');
+  try {
+    if (id) await api(`/admin/price-guides/${id}`,'PUT',body);
+    else await api('/admin/price-guides','POST',body);
+    showToast(id?'已更新':'已创建');
+    document.querySelector('.modal-overlay')?.remove();
+    renderPriceGuides();
+  } catch(e) { showToast(e.message,'error'); }
+}
+
+async function deletePrice(id) {
+  if (!confirm('确认删除此定价条目？')) return;
+  try {
+    await api(`/admin/price-guides/${id}`,'DELETE');
+    showToast('已删除');
+    renderPriceGuides();
+  } catch(e) { showToast(e.message,'error'); }
+}
+
+// ==================== Blacklist ====================
+async function renderBlacklist() {
+  document.getElementById('tabContent').innerHTML = '<div class="card"><h3>黑名单管理</h3></div><div id="blData"><p class="empty">加载中...</p></div>';
+  try {
+    const r = await api('/admin/blacklist');
+    const list = r.data?.blacklist || [];
+    const html = list.length ? `
+      <table class="table">
+        <thead><tr><th>服务者</th><th>类型</th><th>操作</th></tr></thead>
+        <tbody>${list.map(b=>`
+          <tr><td>${b.provider_name||'ID:'+b.provider_id}</td><td>${b.blacklist_type||'permanent'}</td>
+          <td><button class="btn btn-success btn-sm" onclick="unblacklist(${b.provider_id})">解黑</button></td></tr>`).join('')}</tbody></table>` : '<p class="empty">暂无黑名单</p>';
+    document.getElementById('blData').innerHTML = html;
+  } catch(e) {
+    document.getElementById('blData').innerHTML = `<p class="empty">需要 L3 及以上权限</p>`;
+  }
+}
+
+async function unblacklist(id) {
+  try {
+    await api(`/admin/providers/${id}/unblacklist`,'POST');
+    showToast('已解黑');
+    renderBlacklist();
+  } catch(e) { showToast(e.message,'error'); }
+}
+
+function logout() {
+  token=''; user=null; adminRole=null;
+  document.getElementById('app').classList.remove('active');
+  document.getElementById('authBg').style.display='block';
+  document.getElementById('authCard').style.display='block';
+  renderLogin();
+}
+
+renderLogin();
+</script>
+</body>
+</html>

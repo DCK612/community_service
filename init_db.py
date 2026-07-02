@@ -41,6 +41,12 @@ async def init_database():
         await conn.run_sync(Base.metadata.create_all)
     print("[OK] 表结构创建完成")
 
+    # 初始化超级管理员
+    from service.auth_service import init_super_admin
+    async with async_session_factory() as db:
+        await init_super_admin(db)
+    print("[OK] 超级管理员 DDD 已就绪")
+
     async with async_session_factory() as db:
         # 2. 创建居民
         residents_data = [

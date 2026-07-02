@@ -1,5 +1,5 @@
 """
-服务者端路由 — 状态切换、接单、开始/结束服务、信用分查询、评价居民。
+服务者端路由 — 状态切换、抢单大厅、开始/结束服务、信用分查询、评价居民。
 """
 
 from typing import Any, Optional
@@ -12,7 +12,7 @@ from models.database import get_db
 from models.user import ProviderStatus
 from repository.order_repo import order_repo
 from repository.user_repo import user_repo
-from service.dispatch_service import get_available_orders_for_provider
+from service.dispatch_service import get_nearby_orders
 from service.order_service import (
     accept_order as service_accept_order,
     finish_service as service_finish_order,
@@ -34,9 +34,11 @@ class ProviderStatusRequest(BaseModel):
     status: str = Field(..., description="状态: ONLINE / OFFLINE / BUSY")
 
 
-class AcceptOrderRequest(BaseModel):
-    """接单请求。"""
+class GrabOrderRequest(BaseModel):
+    """抢单请求。"""
     provider_id: int = Field(..., description="服务者 ID")
+    latitude: float = Field(..., description="服务者当前纬度")
+    longitude: float = Field(..., description="服务者当前经度")
 
 
 class StartServiceRequest(BaseModel):
@@ -103,87 +105,90 @@ async def update_provider_status(
     )
 
 
-# ==================== 可用订单 ====================
+# ==================== 抢单大厅（附近订单池） ====================
 
-@router.get("/orders/available", response_model=ApiResponse)
+@router.post("/orders/available", response_model=ApiResponse)
 async def get_available_orders(
-    provider_id: int = Query(..., description="服务者 ID"),
+    req: GrabOrderRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """获取当前可接的订单列表。
+    """获取附近待抢订单池。
 
-    返回全部 PENDING 状态订单，按派单优先级排序。
+    返回 PENDING 且 prepaid_status=PAID 的订单，按服务者距离升序排列。
+    同时更新服务者当前位置坐标。
     """
-    orders = await get_available_orders_for_provider(db, provider_id)
+    # 更新服务者位置
+    provider = await user_repo.get_by_id(db, req.provider_id)
+    if provider is None or provider.provider_profile is None:
+        raise HTTPException(status_code=404, detail="服务者不存在")
 
-    # 获取所有在线服务者的派单评分
-    scored_orders = []
-    for order in orders:
-        from service.dispatch_service import calculate_dispatch_scores
+    profile = provider.provider_profile
+    profile.latitude = req.latitude
+    profile.longitude = req.longitude
+    await db.commit()
 
-        scores = await calculate_dispatch_scores(
-            db,
-            category=order.category,
-            order_lat=order.latitude,
-            order_lon=order.longitude,
-        )
-
-        # 找到当前服务者在该订单下的分数
-        my_score = None
-        for provider, score in scores:
-            if provider.id == provider_id:
-                my_score = score
-                break
-
-        scored_orders.append({
-            "order_id": order.id,
-            "order_no": order.order_no,
-            "category": order.category,
-            "description": order.description,
-            "address": order.address,
-            "price": order.price,
-            "my_match_score": my_score,
-            "created_at": order.created_at.isoformat() if order.created_at else None,
-        })
-
-    # 按匹配分数降序
-    scored_orders.sort(
-        key=lambda x: x.get("my_match_score") or 0,
-        reverse=True,
+    # 获取附近订单
+    nearby = await get_nearby_orders(
+        db,
+        provider_id=req.provider_id,
+        provider_lat=req.latitude,
+        provider_lon=req.longitude,
     )
 
     return ApiResponse(
         code=200,
         message="查询成功",
         data={
-            "total": len(scored_orders),
-            "orders": scored_orders,
+            "total": len(nearby),
+            "orders": [
+                {
+                    "order_id": o.id,
+                    "order_no": o.order_no,
+                    "category": o.category,
+                    "description": o.description,
+                    "address": o.address,
+                    "total_price": o.amount,
+                    "prepaid_amount": o.prepaid_amount,
+                    "prepaid_status": o.prepaid_status,
+                    "distance_km": dist,
+                    "created_at": o.created_at.isoformat() if o.created_at else None,
+                }
+                for o, dist in nearby
+            ],
         },
     )
 
 
-# ==================== 接单 ====================
+# ==================== 抢单（原子操作，先到先得） ====================
 
-@router.post("/orders/{order_id}/accept", response_model=ApiResponse)
-async def accept_order(
+@router.post("/orders/{order_id}/grab", response_model=ApiResponse)
+async def grab_order(
     order_id: int,
-    req: AcceptOrderRequest,
+    req: GrabOrderRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """服务者接单。
+    """抢单 — 原子操作，先到先得。
 
-    订单状态从 PENDING → ACCEPTED，记录 accepted_at 时间戳。
+    校验：订单 PENDING + prepaid_status=PAID → 原子更新为 ACCEPTED。
     """
     order = await order_repo.get_by_id(db, order_id)
     if order is None:
         raise HTTPException(status_code=404, detail="订单不存在")
 
+    if order.status.value != "PENDING":
+        raise HTTPException(status_code=400, detail=f"订单状态为 {order.status.value}，无法抢单")
+
+    if order.prepaid_status != "PAID":
+        raise HTTPException(status_code=400, detail="该订单尚未支付预付，无法抢单")
+
+    # 原子抢单：利用唯一约束 provider_id 为 None 时才可更新
+    # 此处直接调用 accept_order，由 service 层做并发安全校验
     await service_accept_order(db, order, req.provider_id)
 
     return ApiResponse(
         code=200,
-        message="接单成功",
-        data={"order_id": order_id, "status": order.status.value},
+        message="抢单成功！",
+        data={"order_id": order_id, "order_no": order.order_no, "status": order.status.value},
     )
 
 

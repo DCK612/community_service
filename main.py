@@ -18,6 +18,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 import config
 from models.database import engine, Base
@@ -36,6 +37,13 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     print(f"[启动] 数据库表已就绪，AI 厂商: {config.AI_PROVIDER}")
+
+    # 初始化超级管理员
+    from models.database import async_session_factory
+    from service.auth_service import init_super_admin
+    async with async_session_factory() as db:
+        await init_super_admin(db)
+    print("[启动] 超级管理员 DDD 已就绪")
 
     yield
 
@@ -75,17 +83,27 @@ app.add_middleware(
 
 # ==================== 路由注册 ====================
 
+from routers.auth import router as auth_router
 from routers.resident import router as resident_router
 from routers.provider import router as provider_router
 from routers.admin import router as admin_router
 from routers.price_guide import router as price_guide_router
 from routers.price_guide import admin_router as price_guide_admin_router
+from routers.ai_chat import router as ai_chat_router
 
+app.include_router(auth_router)
 app.include_router(resident_router)
 app.include_router(provider_router)
 app.include_router(admin_router)
 app.include_router(price_guide_router)
 app.include_router(price_guide_admin_router)
+app.include_router(ai_chat_router)
+
+# 静态文件（前端）
+import os
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.isdir(static_dir):
+    app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
 
 # ==================== 健康检查 ====================

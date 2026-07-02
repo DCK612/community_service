@@ -1,5 +1,5 @@
 """
-居民端路由 — 注册、下单、查单、确认完成、评价。
+居民端路由 — 注册、下单、查单、确认完成、评价、支付。
 
 统一响应格式：{"code": int, "message": str, "data": Any}
 """
@@ -21,6 +21,7 @@ from service.order_service import (
     create_order as service_create_order,
 )
 from service.review_service import create_resident_review
+from service.payment_service import validate_price, calculate_prepaid
 
 router = APIRouter(prefix="/resident", tags=["居民端"])
 
@@ -42,6 +43,7 @@ class CreateOrderRequest(BaseModel):
     category: str = Field(..., description="服务类别: REPAIR/CLEANING/MOVING/TUTORING/ELDERLY_CARE/OTHER")
     description: str = Field(..., max_length=500, description="需求描述")
     address: str = Field(..., max_length=200, description="服务地址")
+    total_price: float = Field(..., gt=0, description="订单总价（元）")
     latitude: Optional[float] = Field(default=None, description="地址纬度")
     longitude: Optional[float] = Field(default=None, description="地址经度")
     expected_time: Optional[str] = Field(default=None, description="期望服务时间")
@@ -123,26 +125,80 @@ async def create_order(
 ):
     """居民下单。
 
-    创建订单后自动触发派单评分，服务者可通过 GET /provider/orders/available 查看。
+    校验出价不低于定价参考最低价 → 计算预付50% → 创建订单（prepaid_status=UNPAID）。
     """
+    # 1. 校验最低价
+    try:
+        await validate_price(db, req.total_price, req.category)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # 2. 计算预付金额和平台费率
+    prepaid_amount = calculate_prepaid(req.total_price)
+    platform_fee_rate = 0.03
+
+    # 3. 创建订单
     order = await service_create_order(
         db,
         resident_id=req.resident_id,
         category=req.category,
         description=req.description,
         address=req.address,
+        amount=req.total_price,
         latitude=req.latitude,
         longitude=req.longitude,
-        expected_time=req.expected_time,
     )
+
+    # 4. 设置支付相关字段
+    order.prepaid_amount = prepaid_amount
+    order.prepaid_status = "UNPAID"
+    order.platform_fee_rate = platform_fee_rate
+    await db.commit()
+    await db.refresh(order)
 
     return ApiResponse(
         code=201,
-        message="下单成功",
+        message="下单成功，请支付预付",
         data={
             "order_id": order.id,
             "order_no": order.order_no,
             "status": order.status.value,
+            "total_price": req.total_price,
+            "prepaid_amount": prepaid_amount,
+            "prepaid_status": order.prepaid_status,
+        },
+    )
+
+
+# ==================== 支付预付 ====================
+
+@router.post("/orders/{order_id}/pay", response_model=ApiResponse)
+async def pay_order(
+    order_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """模拟支付预付（设置 prepaid_status=PAID）。
+
+    支付后订单进入待抢单池，服务者可通过 GET /provider/orders/available 查看。
+    """
+    order = await order_repo.get_by_id(db, order_id)
+    if order is None:
+        raise HTTPException(status_code=404, detail="订单不存在")
+    if order.prepaid_status == "PAID":
+        raise HTTPException(status_code=400, detail="订单已支付，无需重复支付")
+
+    order.prepaid_status = "PAID"
+    await db.commit()
+    await db.refresh(order)
+
+    return ApiResponse(
+        code=200,
+        message="预付支付成功，订单已进入抢单池",
+        data={
+            "order_id": order.id,
+            "order_no": order.order_no,
+            "prepaid_amount": order.prepaid_amount,
+            "prepaid_status": order.prepaid_status,
         },
     )
 

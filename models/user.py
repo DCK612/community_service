@@ -28,9 +28,10 @@ from models.database import Base
 # ==================== 枚举定义 ====================
 
 class UserRole(str, enum.Enum):
-    """用户角色枚举：居民 / 服务者，互斥。"""
+    """用户角色枚举：居民 / 服务者 / 管理员。"""
     RESIDENT = "RESIDENT"    # 居民（下单方）
     PROVIDER = "PROVIDER"    # 服务者（接单方）
+    ADMIN = "ADMIN"          # 管理员
 
 
 class ProviderStatus(str, enum.Enum):
@@ -67,6 +68,10 @@ class UserBase(Base):
     # 头像 URL
     avatar_url: Mapped[Optional[str]] = mapped_column(
         String(500), nullable=True, comment="头像地址"
+    )
+    # 密码哈希
+    password_hash: Mapped[Optional[str]] = mapped_column(
+        String(128), nullable=True, comment="密码哈希（bcrypt）"
     )
     # 注册时间
     created_at: Mapped[datetime] = mapped_column(
@@ -210,4 +215,65 @@ class ProviderProfile(Base):
         return (
             f"<ProviderProfile(id={self.id}, user_id={self.user_id}, "
             f"credit_score={self.credit_score}, status={self.status.value})>"
+        )
+
+
+# ==================== 管理员枚举与模型 ====================
+
+class AdminRole(str, enum.Enum):
+    """管理员角色枚举 — 三级权限体系。"""
+    SUPER_ADMIN = "SUPER_ADMIN"  # 超级管理员（唯一，DDD账号）
+    ADMIN_L1 = "ADMIN_L1"        # 一级：只读看板 + 订单查看
+    ADMIN_L2 = "ADMIN_L2"        # 二级：L1 + 订单管理 + 用户管理
+    ADMIN_L3 = "ADMIN_L3"        # 三级：L2 + 定价配置 + 黑名单管理 + 审批权限
+
+
+class Administrator(Base):
+    """管理员表 — 存储管理员的权限级别与审批状态。
+
+    user_id 关联 UserBase，管理员必须首先是注册用户。
+    审批流程：用户申请 → SUPER_ADMIN 审批 → is_approved=True。
+    """
+
+    __tablename__ = "administrator"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # 关联用户基础表
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("user_base.id", ondelete="CASCADE"),
+        unique=True, nullable=False, comment="用户基础表ID"
+    )
+    # 管理员权限级别
+    admin_role: Mapped[AdminRole] = mapped_column(
+        Enum(AdminRole), nullable=False, comment="管理员角色"
+    )
+    # 是否已通过审批
+    is_approved: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, comment="是否已审批通过"
+    )
+    # 审批人 ID（SUPER_ADMIN）
+    approved_by: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("user_base.id"), nullable=True, comment="审批人ID"
+    )
+    # 审批时间
+    approved_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True, comment="审批时间"
+    )
+    # 创建时间
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), comment="申请时间"
+    )
+
+    # 关联
+    user: Mapped["UserBase"] = relationship(
+        "UserBase", foreign_keys=[user_id], lazy="selectin"
+    )
+    reviewer: Mapped[Optional["UserBase"]] = relationship(
+        "UserBase", foreign_keys=[approved_by], lazy="selectin"
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<Administrator(id={self.id}, user_id={self.user_id}, "
+            f"role={self.admin_role.value}, approved={self.is_approved})>"
         )

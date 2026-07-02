@@ -111,9 +111,29 @@ class Order(Base):
     longitude: Mapped[Optional[float]] = mapped_column(
         Float, nullable=True, comment="地址经度"
     )
-    # 订单金额（元）
-    amount: Mapped[Optional[float]] = mapped_column(
-        Float, nullable=True, comment="订单金额"
+    # 订单金额（居民出价，元）
+    amount: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, comment="订单金额（居民出价）"
+    )
+    # 预付款金额（amount * 50%）
+    prepaid_amount: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, comment="预付款金额"
+    )
+    # 预付款状态
+    prepaid_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="UNPAID", comment="预付款状态: UNPAID/PAID"
+    )
+    # 平台抽成比例（默认 3%）
+    platform_fee_rate: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.03, comment="平台抽成比例"
+    )
+    # 平台抽成金额（结算时计算，amount * 3%）
+    platform_fee: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, comment="平台抽成金额"
+    )
+    # 服务者结算金额（amount - platform_fee）
+    settlement_amount: Mapped[float] = mapped_column(
+        Float, nullable=False, default=0.0, comment="服务者结算金额"
     )
     # ========== 时间戳字段（全生命周期计时） ==========
     # 居民下单时间
